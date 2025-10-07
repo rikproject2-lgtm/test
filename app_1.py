@@ -458,9 +458,9 @@ def serve_driver_dashboard():
 # ------------------------------
 @app.get("/", response_class=HTMLResponse)
 def home():
-    if os.path.exists("ui_final_ai.html"):
-        return open("ui_final_ai.html", encoding="utf-8").read()
-    return "<h2>ui_final_ai.html not found. Place it in the same folder as app.py</h2>"
+    if os.path.exists("ui_final_ai_1.html"):
+        return open("ui_final_ai_1.html", encoding="utf-8").read()
+    return "<h2>ui_final_ai_1.html not found. Place it in the same folder as app.py</h2>"
 
 # ------------------------------
 # Helpful debug endpoint to list filesystem (only for local debugging)
