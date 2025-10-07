@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Driver Dashboard | AI Smart Waste System</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <style>
+    body {
+      margin: 0;
+      font-family: "Segoe UI", sans-serif;
+      background-color: #0a0c10;
+      color: white;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+    header {
+      background: linear-gradient(90deg, #0078d7, #00bcd4);
+      color: white;
+      padding: 10px;
+      text-align: center;
+      font-size: 22px;
+      font-weight: 600;
+      letter-spacing: 1px;
+    }
+    #map {
+      flex: 1;
+      width: 100%;
+    }
+    #panel {
+      background-color: #11151c;
+      padding: 10px;
+      font-size: 16px;
+      border-top: 2px solid #0078d7;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    #status {
+      flex: 2;
+      margin-right: 10px;
+    }
+    #controls button {
+      background-color: #0078d7;
+      border: none;
+      color: white;
+      padding: 8px 14px;
+      margin: 5px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 500;
+    }
+    #controls button:hover {
+      background-color: #00bfff;
+    }
+  </style>
+</head>
+<body>
+  <header>🚚 Driver Dashboard - AI Waste Vehicle Assistant</header>
+  <div id="map"></div>
+  <div id="panel">
+    <div id="status">Fetching vehicle assignment...</div>
+    <div id="controls">
+      <button onclick="toggleLang()">🌐 Toggle Lang (EN/HI)</button>
+      <button onclick="speakStatus()">🔊 Voice Status</button>
+    </div>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const vehicleId = params.get("id") || 1;
+    let lang = "en";
+    let map, vehicleMarker, binMarker;
+    let currentPosition = null;
+    let routePolyline = null;
+    let intervalId = null;
+    let isMoving = false;
+
+    function speak(text) {
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.lang = lang === "en" ? "en-US" : "hi-IN";
+      speechSynthesis.speak(utter);
+    }
+
+    function toggleLang() {
+      lang = lang === "en" ? "hi" : "en";
+      speak(lang === "en" ? "Language set to English" : "भाषा हिंदी में बदल गई है।");
+    }
+
+    async function loadAssignment() {
+      const res = await fetch(`/driver/${vehicleId}`);
+      const data = await res.json();
+      const statusDiv = document.getElementById("status");
+
+      if (data.status === "ERROR") {
+        statusDiv.innerHTML = "❌ Vehicle not found.";
+        return;
+      }
+
+      if (data.status === "IDLE") {
+        statusDiv.innerHTML = `🅿️ Vehicle ${vehicleId} is idle. No active task assigned.`;
+        if (!isMoving) speak(lang === "en" ? "No active route assigned." : "कोई सक्रिय कार्य नहीं है।");
+        return;
+      }
+
+      if (data.status === "ASSIGNED") {
+        const v = data.vehicle_location;
+        const b = data.assigned_bin;
+        statusDiv.innerHTML = `
+          🚗 Vehicle ${vehicleId} Assigned<br>
+          ➡️ Destination Bin ${b.id} (${b.lat.toFixed(5)}, ${b.lng.toFixed(5)})<br>
+          🗑️ Fill Level: ${b.fill}%<br>
+          ✅ Completed Trips: ${data.completed}
+        `;
+        if (!map) {
+          map = L.map("map").setView([v.lat, v.lng], 16);
+          L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
+        }
+
+        if (!vehicleMarker) {
+          vehicleMarker = L.marker([v.lat, v.lng], {
+            icon: L.icon({
+              iconUrl: "https://cdn-icons-png.flaticon.com/512/3097/3097144.png",
+              iconSize: [42, 42],
+            }),
+          }).addTo(map);
+        }
+
+        if (!binMarker) {
+          binMarker = L.marker([b.lat, b.lng], {
+            icon: L.icon({
+              iconUrl: "https://cdn-icons-png.flaticon.com/512/854/854878.png",
+              iconSize: [40, 40],
+            }),
+          }).addTo(map).bindPopup(`Bin ${b.id}`);
+        }
+
+        currentPosition = [v.lat, v.lng];
+        moveVehicleTo([b.lat, b.lng]);
+      }
+    }
+
+    function moveVehicleTo(target) {
+      if (isMoving) return;
+      isMoving = true;
+      const [targetLat, targetLng] = target;
+      let step = 0;
+      const totalSteps = 150;
+      const [startLat, startLng] = currentPosition;
+      const deltaLat = (targetLat - startLat) / totalSteps;
+      const deltaLng = (targetLng - startLng) / totalSteps;
+
+      if (routePolyline) routePolyline.remove();
+      routePolyline = L.polyline([currentPosition, target], { color: "lime", weight: 5 }).addTo(map);
+      speak(lang === "en" ? "Route received. Starting journey to assigned bin." : "रास्ता प्राप्त हुआ। निर्धारित कूड़ेदान तक यात्रा शुरू की गई।");
+
+      let progress = 0;
+      const moveInterval = setInterval(async () => {
+        progress++;
+        const newLat = startLat + deltaLat * progress;
+        const newLng = startLng + deltaLng * progress;
+        vehicleMarker.setLatLng([newLat, newLng]);
+        map.panTo([newLat, newLng], { animate: true });
+
+        if (progress >= totalSteps) {
+          clearInterval(moveInterval);
+          speak(lang === "en" ? "Task completed successfully." : "कार्य सफलतापूर्वक पूरा हुआ।");
+          await fetch(`/complete_trip/${vehicleId}/${Math.floor(Math.random() * 5) + 1}`, { method: "POST" });
+          isMoving = false;
+          binMarker.remove();
+          routePolyline.remove();
+          loadAssignment();
+        }
+      }, 100);
+    }
+
+    async function speakStatus() {
+      const res = await fetch(`/driver/${vehicleId}`);
+      const data = await res.json();
+      if (data.status === "ASSIGNED") {
+        const text = `Vehicle ${data.vehicle_id} heading to bin ${data.assigned_bin.id}.`;
+        speak(lang === "en" ? text : `वाहन ${data.vehicle_id} कूड़ेदान ${data.assigned_bin.id} की ओर जा रहा है।`);
+      } else {
+        speak(lang === "en" ? "No current assignment." : "कोई वर्तमान असाइनमेंट नहीं है।");
+      }
+    }
+
+    intervalId = setInterval(loadAssignment, 5000);
+    loadAssignment();
+  </script>
+</body>
+</html>
