@@ -1,29 +1,30 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>AI Smart Waste Management | Dashboard</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
-<link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css"/>
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-<script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<style>
-body { margin:0; font-family: 'Segoe UI', Arial, sans-serif; background:#eef3f8; color:#111; }
-header { background:#004080; color:white; text-align:center; padding:12px; font-size:22px; }
-#map { height:65vh; width:100%; border-bottom:3px solid #004080; }
-section { display:flex; flex-wrap:wrap; justify-content:space-around; padding:15px; }
-.card { background:white; border-radius:10px; padding:15px; margin:10px; box-shadow:0 2px 6px rgba(0,0,0,0.1); flex:1; min-width:280px; }
-button { background:#004080; color:white; border:none; border-radius:6px; padding:10px 15px; margin:4px; font-weight:bold; cursor:pointer; }
-button:hover { background:#0059b3; }
-#alerts { max-height:150px; overflow-y:auto; font-size:14px; }
-canvas { width:100%; height:150px; }
-h3 { color:#004080; margin-top:0; }
-</style>
+  <meta charset="UTF-8">
+  <title>AI Smart Waste Management Dashboard</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css"/>
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { margin:0; font-family: 'Segoe UI', sans-serif; background:#eef3f8; color:#111; }
+    header { background:#004080; color:white; padding:12px; text-align:center; font-size:22px; }
+    #map { width:100%; height:65vh; border-bottom:3px solid #004080; }
+    section { display:flex; flex-wrap:wrap; justify-content:space-around; padding:15px; }
+    .card { background:white; border-radius:10px; padding:15px; margin:8px; box-shadow:0 2px 6px rgba(0,0,0,0.1); flex:1; min-width:260px; }
+    h3 { color:#004080; margin-top:0; }
+    button { background:#004080; color:white; border:none; padding:10px 15px; margin:3px; border-radius:6px; font-weight:bold; cursor:pointer; }
+    button:hover { background:#0060b0; }
+    #alerts { max-height:150px; overflow-y:auto; font-size:14px; }
+    canvas { width:100%; height:150px; }
+  </style>
 </head>
 <body>
 
 <header>🏫 Smart Campus Waste Management — AI Dashboard</header>
+
 <div id="map"></div>
 
 <section>
@@ -33,25 +34,25 @@ h3 { color:#004080; margin-top:0; }
     <button onclick="assignVehicle()">🚗 Assign Route (AI)</button>
     <button onclick="startAuto()">▶ Start Auto</button>
     <button onclick="stopAuto()">⏹ Stop Auto</button>
-    <button onclick="resetAll()">♻ Reset</button>
+    <button onclick="resetSystem()">♻ Reset</button>
   </div>
 
   <div class="card">
     <h3>System Stats</h3>
     <p id="completedTrips">Completed Trips: 0</p>
-    <p id="totalDistance">Distance: 0 m</p>
-    <p id="avgETA">Avg ETA: 0 s</p>
+    <p id="totalDistance">Total Distance: 0</p>
+    <p id="avgETA">Avg ETA: 0</p>
     <p id="aiEfficiency">AI Efficiency: 0%</p>
-  </div>
-
-  <div class="card">
-    <h3>Performance Chart</h3>
-    <canvas id="tripChart"></canvas>
   </div>
 
   <div class="card">
     <h3>AI Alerts</h3>
     <div id="alerts"></div>
+  </div>
+
+  <div class="card">
+    <h3>Performance Chart</h3>
+    <canvas id="tripChart"></canvas>
   </div>
 </section>
 
@@ -61,18 +62,18 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
 let binMarkers = {};
 let vehicleMarkers = {};
-let routes = {};
-let chart;
+let routeLines = {};
 
-function speak(text) {
-  const synth = window.speechSynthesis;
-  if (!synth) return;
-  const utter = new SpeechSynthesisUtterance(text);
-  utter.lang = "en-IN";
-  synth.speak(utter);
+function speak(msg) {
+  try {
+    const synth = window.speechSynthesis;
+    const utter = new SpeechSynthesisUtterance(msg);
+    utter.lang = 'en-IN';
+    synth.speak(utter);
+  } catch {}
 }
 
-function getColor(fill) {
+function colorFromFill(fill) {
   if (fill >= 80) return "red";
   if (fill >= 50) return "orange";
   return "green";
@@ -82,95 +83,88 @@ async function loadBins() {
   const res = await fetch('/bins');
   const bins = await res.json();
   bins.forEach(b => {
-    const color = getColor(b.fill);
-    const icon = L.icon({
-      iconUrl: color === "red"
-        ? "https://cdn-icons-png.flaticon.com/512/854/854878.png"
-        : color === "orange"
-        ? "https://cdn-icons-png.flaticon.com/512/2990/2990553.png"
-        : "https://cdn-icons-png.flaticon.com/512/709/709496.png",
-      iconSize: [38, 38]
-    });
+    const color = colorFromFill(b.fill);
+    const iconUrl = color === "red"
+      ? "https://cdn-icons-png.flaticon.com/512/854/854878.png"
+      : color === "orange"
+      ? "https://cdn-icons-png.flaticon.com/512/2990/2990553.png"
+      : "https://cdn-icons-png.flaticon.com/512/709/709496.png";
+    const icon = L.icon({ iconUrl, iconSize:[36,36] });
+
     if (!binMarkers[b.id]) {
       binMarkers[b.id] = L.marker([b.lat, b.lng], { icon }).addTo(map);
-    } else {
-      binMarkers[b.id].setLatLng([b.lat, b.lng]);
     }
-    binMarkers[b.id].bindPopup(`Bin ${b.id}<br>Fill: ${b.fill}%`);
+    binMarkers[b.id].setIcon(icon);
+    binMarkers[b.id].bindPopup(`🗑 Bin ${b.id}<br>Fill: ${b.fill}%`);
   });
 }
 
 async function loadVehicles() {
   const res = await fetch('/vehicles');
   const vehicles = await res.json();
-  vehicles.forEach(v => {
+  for (const v of vehicles) {
     const icon = L.icon({
-      iconUrl: "https://cdn-icons-png.flaticon.com/512/3097/3097144.png",
-      iconSize: [40, 40]
+      iconUrl:"https://cdn-icons-png.flaticon.com/512/3097/3097144.png",
+      iconSize:[40,40]
     });
     if (!vehicleMarkers[v.id]) {
       vehicleMarkers[v.id] = L.marker([v.lat, v.lng], { icon }).addTo(map);
     } else {
       vehicleMarkers[v.id].setLatLng([v.lat, v.lng]);
     }
-
-    if (v.target_bin) {
-      const bin = await getBin(v.target_bin);
-      drawRoute(v.id, [v.lat, v.lng], [bin.lat, bin.lng]);
-    } else if (routes[v.id]) {
-      map.removeControl(routes[v.id]);
-      delete routes[v.id];
-    }
-  });
+    vehicleMarkers[v.id].bindPopup(`🚛 Vehicle ${v.id}<br>Status: ${v.status}`);
+    if (v.target_bin) drawRoute(v.id, v.lat, v.lng, v.target_bin);
+  }
 }
 
-async function getBin(id) {
+async function drawRoute(vehicleId, vlat, vlng, binId) {
   const res = await fetch('/bins');
-  const all = await res.json();
-  return all.find(b => b.id === id);
+  const bins = await res.json();
+  const bin = bins.find(b => b.id === binId);
+  if (!bin) return;
+  if (routeLines[vehicleId]) map.removeControl(routeLines[vehicleId]);
+  routeLines[vehicleId] = L.Routing.control({
+    waypoints: [L.latLng(vlat, vlng), L.latLng(bin.lat, bin.lng)],
+    lineOptions: { styles: [{ color:'purple', weight:4, opacity:0.7 }] },
+    addWaypoints: false,
+    draggableWaypoints: false,
+    fitSelectedRoutes: false,
+    createMarker: () => null
+  }).addTo(map);
+}
+
+async function loadAlerts() {
+  const res = await fetch('/alerts');
+  const alerts = await res.json();
+  document.getElementById("alerts").innerHTML =
+    alerts.slice(-8).reverse().map(a => `🕒 ${a.time} — ${a.msg}`).join("<br>");
 }
 
 async function loadStats() {
   const res = await fetch('/stats');
   const s = await res.json();
   document.getElementById("completedTrips").innerText = "Completed Trips: " + s.completed;
-  document.getElementById("totalDistance").innerText = "Distance: " + Math.round(s.distance) + " m";
+  document.getElementById("totalDistance").innerText = "Total Distance: " + Math.round(s.distance) + " m";
   document.getElementById("avgETA").innerText = "Avg ETA: " + Math.round(s.avg_eta) + " s";
   document.getElementById("aiEfficiency").innerText = "AI Efficiency: " + (s.ai_efficiency || 0) + "%";
-  updateChart(s.trips_over_time || []);
-}
-
-async function loadAlerts() {
-  const res = await fetch('/alerts');
-  const alerts = await res.json();
-  const div = document.getElementById("alerts");
-  div.innerHTML = alerts.slice(-10).reverse().map(a => `<div>🕒 ${a.time} — ${a.msg}</div>`).join('');
-}
-
-function drawRoute(id, start, end) {
-  if (routes[id]) map.removeControl(routes[id]);
-  routes[id] = L.Routing.control({
-    waypoints: [L.latLng(start[0], start[1]), L.latLng(end[0], end[1])],
-    lineOptions: { styles: [{ color: 'purple', weight: 5, opacity: 0.6 }] },
-    addWaypoints: false, draggableWaypoints: false, fitSelectedRoutes: false, createMarker: () => null
-  }).addTo(map);
+  updateChart(s.completed);
 }
 
 async function predictFills() {
   await fetch('/predict_fills', { method: 'POST' });
-  speak("Predicting bin fill levels using AI.");
+  speak("AI predicting bin fill levels...");
   await refresh();
 }
 
 async function assignVehicle() {
   await fetch('/assign_nearest_full', { method: 'POST' });
-  speak("Assigning nearest vehicle dynamically using AI.");
+  speak("AI assigning the nearest vehicle...");
   await refresh();
 }
 
 async function startAuto() {
   await fetch('/start_auto', { method: 'POST' });
-  speak("Auto mode started. AI is managing routes.");
+  speak("AI Auto mode started.");
 }
 
 async function stopAuto() {
@@ -178,32 +172,39 @@ async function stopAuto() {
   speak("Auto mode stopped.");
 }
 
-async function resetAll() {
+async function resetSystem() {
   await fetch('/reset', { method: 'POST' });
-  speak("System reset completed.");
+  speak("System has been reset.");
   await refresh();
 }
 
-let chartObj;
-function updateChart(trips) {
+let chart;
+function updateChart(val) {
   const ctx = document.getElementById('tripChart').getContext('2d');
-  if (!chartObj) {
-    chartObj = new Chart(ctx, {
+  if (!chart) {
+    chart = new Chart(ctx, {
       type: 'line',
-      data: { labels: [], datasets: [{ label:'Trips Completed', data:[], borderColor:'#004080', tension:0.2 }] },
-      options: { responsive:true, scales:{ y:{ beginAtZero:true } } }
+      data: { labels: [], datasets: [{ label:'Trips', data:[], borderColor:'#004080', fill:false }] },
+      options: { scales: { y: { beginAtZero:true } } }
     });
   }
-  chartObj.data.labels = trips.map(t => t.time);
-  chartObj.data.datasets[0].data = trips.map(t => t.completed);
-  chartObj.update();
+  chart.data.labels.push(new Date().toLocaleTimeString());
+  chart.data.datasets[0].data.push(val);
+  if (chart.data.labels.length > 10) {
+    chart.data.labels.shift();
+    chart.data.datasets[0].data.shift();
+  }
+  chart.update();
 }
 
 async function refresh() {
-  await Promise.all([loadBins(), loadVehicles(), loadStats(), loadAlerts()]);
+  await loadBins();
+  await loadVehicles();
+  await loadStats();
+  await loadAlerts();
 }
 
-setInterval(refresh, 2500);
+setInterval(refresh, 3000);
 refresh();
 </script>
 
