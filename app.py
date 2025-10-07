@@ -246,6 +246,6 @@ def home():
 # --------------------------------------
 if __name__ == "__main__":
     import uvicorn
-    port = int(os.environ.get("PORT", 8001))
+    port = int(os.environ.get("PORT", 8000))
     print(f"🚀 Smart Waste AI System running on http://0.0.0.0:{port}")
     uvicorn.run(app, host="127.0.0.1", port=port)
