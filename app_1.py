@@ -449,8 +449,8 @@ def driver_dashboard(vehicle_id: int):
 
 @app.get("/driver_dashboard", response_class=HTMLResponse)
 def serve_driver_dashboard():
-    if os.path.exists("driver_ai.html"):
-        return open("driver_ai.html", encoding="utf-8").read()
+    if os.path.exists("driver_ai_1.html"):
+        return open("driver_ai_1.html", encoding="utf-8").read()
     return "<h2>Driver dashboard file not found</h2>"
 
 # ------------------------------
