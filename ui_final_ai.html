@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Smart Waste Management - AI Dashboard</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      margin: 0;
+      font-family: "Segoe UI", sans-serif;
+      background-color: #0b0c10;
+      color: #ffffff;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+    header {
+      background: linear-gradient(90deg, #0078d7, #00c3ff);
+      color: white;
+      padding: 10px 20px;
+      text-align: center;
+      font-size: 24px;
+      font-weight: 600;
+      letter-spacing: 1px;
+    }
+    main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+    #map {
+      flex: 2;
+      height: 100%;
+    }
+    .sidebar {
+      flex: 1;
+      background: #11151c;
+      color: #e6e6e6;
+      padding: 15px;
+      overflow-y: auto;
+      border-left: 2px solid #1f2833;
+    }
+    h2 {
+      font-size: 18px;
+      border-bottom: 2px solid #0078d7;
+      padding-bottom: 4px;
+      margin-top: 15px;
+    }
+    button {
+      background-color: #0078d7;
+      border: none;
+      color: white;
+      padding: 8px 12px;
+      margin: 5px 2px;
+      cursor: pointer;
+      border-radius: 6px;
+      font-weight: 500;
+    }
+    button:hover {
+      background-color: #0094ff;
+    }
+    #alerts, #ai-insights {
+      font-size: 14px;
+      line-height: 1.4;
+    }
+    #charts {
+      background: #0e1116;
+      border-radius: 8px;
+      padding: 10px;
+      margin-top: 10px;
+    }
+    .chart-container {
+      width: 100%;
+      height: 200px;
+      margin-bottom: 15px;
+    }
+  </style>
+</head>
+<body>
+  <header>♻️ Smart Waste Management | AI Predictive Dashboard</header>
+  <main>
+    <div id="map"></div>
+    <div class="sidebar">
+      <h2>⚙️ Controls</h2>
+      <button onclick="predictAI()">🤖 Predict Bin Fill (AI)</button>
+      <button onclick="assignAI()">🚗 AI Assign Route</button>
+      <button onclick="toggleAuto()">🔄 Toggle Auto Mode</button>
+      <button onclick="speakAI()">🔊 Voice AI Status</button>
+      <button onclick="toggleLang()">🌐 Toggle Lang (EN/HI)</button>
+      <h2>🧠 AI Insights</h2>
+      <div id="ai-insights">Waiting for AI predictions...</div>
+      <h2>⚠️ Alerts</h2>
+      <div id="alerts">No alerts yet.</div>
+      <h2>📊 Analytics</h2>
+      <div id="charts">
+        <div class="chart-container"><canvas id="effChart"></canvas></div>
+        <div class="chart-container"><canvas id="tripChart"></canvas></div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    let lang = "en";
+    let auto = false;
+    const map = L.map("map").setView([22.0509, 88.0725], 16);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
+
+    const binIcons = {
+      FULL: L.icon({ iconUrl: "https://cdn-icons-png.flaticon.com/512/854/854878.png", iconSize: [38, 38] }),
+      OK: L.icon({ iconUrl: "https://cdn-icons-png.flaticon.com/512/854/854893.png", iconSize: [32, 32] }),
+    };
+
+    const vehicleIcon = L.icon({
+      iconUrl: "https://cdn-icons-png.flaticon.com/512/3097/3097144.png",
+      iconSize: [42, 42],
+    });
+
+    const binMarkers = {};
+    const vehicleMarkers = {};
+
+    async function refreshMap() {
+      const bins = await fetch("/bins").then(r => r.json());
+      const vehicles = await fetch("/vehicles").then(r => r.json());
+
+      bins.forEach(b => {
+        if (binMarkers[b.id]) {
+          binMarkers[b.id].setLatLng([b.lat, b.lng]);
+        } else {
+          binMarkers[b.id] = L.marker([b.lat, b.lng], { icon: b.status === "FULL" ? binIcons.FULL : binIcons.OK })
+            .addTo(map)
+            .bindPopup(`Bin ${b.id}<br>Fill: ${b.fill}%<br>Status: ${b.status}`);
+        }
+      });
+
+      vehicles.forEach(v => {
+        if (vehicleMarkers[v.id]) {
+          vehicleMarkers[v.id].setLatLng([v.lat, v.lng]);
+        } else {
+          vehicleMarkers[v.id] = L.marker([v.lat, v.lng], { icon: vehicleIcon })
+            .addTo(map)
+            .bindPopup(`Vehicle ${v.id}<br>Status: ${v.status}`);
+        }
+      });
+    }
+
+    async function predictAI() {
+      const res = await fetch("/predict_fills", { method: "POST" });
+      const data = await res.json();
+      updateInsights("AI predicted bin fill levels updated.");
+      if (lang === "en") speak("AI predicted bin fill levels updated.");
+      else speak("एआई ने कूड़ेदान के भराव स्तर का अनुमान लगाया।");
+      refreshMap();
+    }
+
+    async function assignAI() {
+      const res = await fetch("/assign_nearest_full", { method: "POST" });
+      const data = await res.json();
+      updateInsights("AI dynamically assigned nearest vehicle to full bin.");
+      if (lang === "en") speak("AI optimized vehicle assignment completed.");
+      else speak("एआई ने वाहन असाइनमेंट को अनुकूलित किया।");
+      refreshMap();
+    }
+
+    async function toggleAuto() {
+      auto = !auto;
+      await fetch(auto ? "/start_auto" : "/stop_auto", { method: "POST" });
+      const msg = auto ? "Auto Mode Activated" : "Auto Mode Stopped";
+      updateInsights(msg);
+      if (lang === "en") speak(msg);
+      else speak(auto ? "स्वचालित मोड सक्रिय किया गया।" : "स्वचालित मोड बंद किया गया।");
+    }
+
+    function updateInsights(msg) {
+      const div = document.getElementById("ai-insights");
+      div.innerHTML = `<b>${msg}</b><br>${new Date().toLocaleTimeString()}`;
+    }
+
+    async function refreshAlerts() {
+      const res = await fetch("/alerts");
+      const data = await res.json();
+      const div = document.getElementById("alerts");
+      div.innerHTML = data
+        .slice(-10)
+        .map(a => `<div>[${a.time}] ${a.msg}</div>`)
+        .join("");
+    }
+
+    // ---------- Voice + Charts ----------
+    function speak(text) {
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.lang = lang === "en" ? "en-US" : "hi-IN";
+      speechSynthesis.speak(utter);
+    }
+
+    function toggleLang() {
+      lang = lang === "en" ? "hi" : "en";
+      speak(lang === "en" ? "Language set to English" : "भाषा हिंदी में बदल गई है।");
+    }
+
+    async function speakAI() {
+      const stats = await fetch("/stats").then(r => r.json());
+      const text = `AI efficiency ${stats.ai_efficiency} percent. ${stats.completed} trips completed.`;
+      speak(lang === "en" ? text : `एआई दक्षता ${stats.ai_efficiency} प्रतिशत। ${stats.completed} यात्राएं पूरी हुईं।`);
+    }
+
+    // ---------- Charts ----------
+    const effChart = new Chart(document.getElementById("effChart"), {
+      type: "line",
+      data: { labels: [], datasets: [{ label: "AI Efficiency (%)", data: [], borderColor: "#00c3ff" }] },
+      options: { scales: { y: { beginAtZero: true } } },
+    });
+
+    const tripChart = new Chart(document.getElementById("tripChart"), {
+      type: "bar",
+      data: { labels: [], datasets: [{ label: "Trips Completed", data: [], backgroundColor: "#0078d7" }] },
+      options: { scales: { y: { beginAtZero: true } } },
+    });
+
+    async function updateCharts() {
+      const stats = await fetch("/stats").then(r => r.json());
+      const time = new Date().toLocaleTimeString();
+      effChart.data.labels.push(time);
+      effChart.data.datasets[0].data.push(stats.ai_efficiency);
+      tripChart.data.labels.push(time);
+      tripChart.data.datasets[0].data.push(stats.completed);
+      effChart.update();
+      tripChart.update();
+    }
+
+    // ---------- Live Loop ----------
+    setInterval(refreshMap, 3000);
+    setInterval(refreshAlerts, 4000);
+    setInterval(updateCharts, 6000);
+
+    refreshMap();
+  </script>
+</body>
+</html>
