@@ -5,9 +5,9 @@ import datetime, threading, time, random, math, os
 app = FastAPI()
 CAMPUS_CENTER = (22.0509, 88.0725)
 
-# --------------------------------------
-# Utility: Haversine Distance Calculation
-# --------------------------------------
+# ------------------------------
+# Haversine Distance Calculation
+# ------------------------------
 def haversine(lat1, lon1, lat2, lon2):
     R = 6371000
     phi1, phi2 = math.radians(lat1), math.radians(lat2)
@@ -15,17 +15,17 @@ def haversine(lat1, lon1, lat2, lon2):
     a = math.sin(dphi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2) ** 2
     return 2 * R * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
-# --------------------------------------
-# AI-Powered Predictive Bin Fill Model
-# --------------------------------------
+# ------------------------------
+# Predictive AI Simulation Model
+# ------------------------------
 def predict_fill(bin_data):
     growth = random.uniform(1.0, 4.0)
     next_fill = min(100, bin_data["fill"] + growth)
     return round(next_fill, 2)
 
-# --------------------------------------
+# ------------------------------
 # Data Initialization
-# --------------------------------------
+# ------------------------------
 bins = [
     {"id": 1, "lat": 22.0513, "lng": 88.0721, "fill": 40, "status": "OK"},
     {"id": 2, "lat": 22.0506, "lng": 88.0712, "fill": 30, "status": "OK"},
@@ -51,9 +51,9 @@ assignments, comparison_stats, bin_alerts = [], [], []
 auto_sim = {"running": False}
 system_stats = {"completed": 0, "distance": 0.0, "avg_eta": 0.0, "ai_efficiency": 0.0}
 
-# --------------------------------------
-# Dashboard APIs
-# --------------------------------------
+# ------------------------------
+# APIs for Dashboard
+# ------------------------------
 @app.get("/bins")
 def get_bins():
     return bins
@@ -78,14 +78,13 @@ def get_stats():
 def get_comparisons():
     return comparison_stats
 
-# --------------------------------------
-# AI Predictive Bin Filling
-# --------------------------------------
+# ------------------------------
+# Predictive Bin Filling (AI)
+# ------------------------------
 @app.post("/predict_fills")
 def predict_fills():
     ai_changes = []
     for b in bins:
-        old_fill = b["fill"]
         b["fill"] = predict_fill(b)
         if b["fill"] >= 100:
             b["status"] = "FULL"
@@ -99,9 +98,9 @@ def predict_fills():
             })
     return {"ok": True, "changes": ai_changes}
 
-# --------------------------------------
-# AI Route Optimization and Assignment
-# --------------------------------------
+# ------------------------------
+# Assign Vehicle (AI Optimized)
+# ------------------------------
 @app.post("/assign_nearest_full")
 def assign_nearest_full():
     full_bins = [b for b in bins if b["status"] == "FULL" and not any(v["target_bin"] == b["id"] for v in vehicles)]
@@ -140,15 +139,15 @@ def assign_nearest_full():
 
     bin_alerts.append({
         "time": rec["time"],
-        "msg": f"🤖 AI assigned Vehicle {nearest_vehicle['id']} to Bin {b['id']} (Optimized Route)"
+        "msg": f"🚗 AI assigned Vehicle {nearest_vehicle['id']} to Bin {b['id']} (optimized)"
     })
 
-    system_stats["ai_efficiency"] = round(random.uniform(15, 30), 2)
+    system_stats["ai_efficiency"] = round(random.uniform(10, 25), 2)
     return {"ok": True, "assignment": rec}
 
-# --------------------------------------
-# Trip Completion
-# --------------------------------------
+# ------------------------------
+# Complete Trip
+# ------------------------------
 @app.post("/complete_trip/{vid}/{bid}")
 def complete_trip(vid: int, bid: int):
     for v in vehicles:
@@ -165,9 +164,9 @@ def complete_trip(vid: int, bid: int):
     })
     return {"ok": True}
 
-# --------------------------------------
-# AI + Auto Mode Loop
-# --------------------------------------
+# ------------------------------
+# Auto Mode (AI Loop)
+# ------------------------------
 @app.post("/start_auto")
 def start_auto():
     auto_sim["running"] = True
@@ -198,9 +197,9 @@ def auto_loop():
 
 threading.Thread(target=auto_loop, daemon=True).start()
 
-# --------------------------------------
+# ------------------------------
 # Driver Dashboard APIs
-# --------------------------------------
+# ------------------------------
 @app.get("/driver/{vehicle_id}")
 def driver_dashboard(vehicle_id: int):
     v = next((veh for veh in vehicles if veh["id"] == vehicle_id), None)
@@ -231,9 +230,9 @@ def serve_driver_dashboard():
     except FileNotFoundError:
         return "<h2>Driver dashboard file not found</h2>"
 
-# --------------------------------------
-# Main Dashboard UI
-# --------------------------------------
+# ------------------------------
+# Serve Main UI
+# ------------------------------
 @app.get("/", response_class=HTMLResponse)
 def home():
     try:
@@ -241,11 +240,11 @@ def home():
     except FileNotFoundError:
         return "<h2>ui_final_ai.html not found. Place it in the same folder as app.py</h2>"
 
-# --------------------------------------
+# ------------------------------
 # Run Server
-# --------------------------------------
+# ------------------------------
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8000))
-    print(f"🚀 Smart Waste AI System running on http://0.0.0.0:{port}")
-    uvicorn.run(app, host="127.0.0.1", port=port)
+    print(f"🚀 Running Smart Waste AI System at http://0.0.0.0:{port}")
+    uvicorn.run(app, host="0.0.0.0", port=port)
